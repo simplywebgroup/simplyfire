@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>SimplyFire</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#002BFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SimplyFire">
+  <link rel="apple-touch-icon" href="/simplyfireappicon.png">
+
+  <!-- Google Fonts — Roboto (Material Design) + Roboto Mono (pager text) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Google / Material Design 3 tokens ──────────────── */
+    :root {
+      /* Google brand colours */
+      --g-blue:   #002BFF;
+      --g-red:    #ea4335;
+      --g-yellow: #fbbc04;
+      --g-green:  #34a853;
+      /* Tinted surfaces */
+      --g-blue-tint:   #e6eaff;
+      --g-red-tint:    #fce8e6;
+      --g-yellow-tint: #fef7e0;
+      --g-green-tint:  #e6f4ea;
+      /* Light surfaces */
+      --surface:     #ffffff;
+      --surface-2:   #f8f9fa;
+      --bg:          #f1f3f4;
+      --on-surface:  #202124;
+      --on-surface-2: #5f6368;
+      --outline:     #dadce0;
+      /* Dark surface (pager strip) */
+      --dark:     #202124;
+      --dark-2:   #2d2f31;
+      --dark-on:  #e8eaed;
+      --dark-on-2: #9aa0a6;
+      /* Alias so existing JS colour refs still resolve */
+      --red: var(--g-red);
+    }
+
+    body {
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Sticky top wrapper ──────────────────────────────── */
+    .sticky-top { position: sticky; top: 0; z-index: 20; }
+
+    /* ── Material Top App Bar ────────────────────────────── */
+    header {
+      background: var(--g-blue);
+      color: #fff;
+      padding: 0 16px 14px;
+      padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      /* MD elevation 4 */
+      box-shadow: 0 2px 4px -1px rgba(0,0,0,.2),
+                  0 4px 5px 0 rgba(0,0,0,.14),
+                  0 1px 10px 0 rgba(0,0,0,.12);
+    }
+
+    .header-icon { font-size: 1.25rem; line-height: 1; flex-shrink: 0; }
+
+    header h1 {
+      font-size: 1.125rem;   /* 18 sp */
+      font-weight: 500;
+      letter-spacing: .0125em;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #lastRefresh {
+      font-size: .75rem;
+      color: rgba(255,255,255,.8);
+      white-space: nowrap;
+      letter-spacing: .01em;
+    }
+
+    #lastRefresh.refreshing { color: var(--g-yellow); }
+
+    @media (max-width: 480px) { #lastRefresh { display: none; } }
+
+    #refreshBtn {
+      background: rgba(255,255,255,.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,.4);
+      border-radius: 20px;
+      padding: 7px 18px;
+      font-family: 'Roboto', sans-serif;
+      font-size: .8125rem;
+      font-weight: 500;
+      letter-spacing: .025em;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s cubic-bezier(.4,0,.2,1);
+    }
+
+    #refreshBtn:hover    { background: rgba(255,255,255,.26); }
+    #refreshBtn:active   { background: rgba(255,255,255,.36); }
+    #refreshBtn:disabled {
+      background: rgba(255,255,255,.07);
+      color: rgba(255,255,255,.38);
+      cursor: not-allowed;
+    }
+
+    /* ── Material Filter Chip bar ────────────────────────── */
+    #filter-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--outline);
+      padding: 10px 14px;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    #filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      flex-shrink: 0;
+      border: 1px solid var(--outline);
+      border-radius: 8px;
+      padding: 6px 16px;
+      font-family: 'Roboto', sans-serif;
+      font-size: .8125rem;
+      font-weight: 500;
+      letter-spacing: .01em;
+      background: transparent;
+      color: var(--on-surface-2);
+      cursor: pointer;
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+      transition: background .15s cubic-bezier(.4,0,.2,1),
+                  border-color .15s, color .15s;
+    }
+
+    .filter-btn:hover  {
+      background: rgba(0,43,255,.07);
+      border-color: var(--g-blue);
+      color: var(--g-blue);
+    }
+    .filter-btn:active { background: rgba(0,43,255,.14); }
+    .filter-btn.active {
+      background: var(--g-blue-tint);
+      border-color: var(--g-blue);
+      color: #0022cc;
+    }
+
+    /* ── Main ───────────────────────────────────────────── */
+    main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 16px 12px calc(56px + env(safe-area-inset-bottom,0px) + 32px);
+    }
+
+    /* ── Google circular progress + error ───────────────── */
+    #status {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--on-surface-2);
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--g-blue-tint);
+      border-top-color: var(--g-blue);
+      border-radius: 50%;
+      animation: spin .75s cubic-bezier(.4,0,.2,1) infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      background: var(--g-red-tint);
+      border: 1px solid #f5c6c2;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: left;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .error-box h2 { color: #c5221f; margin-bottom: 6px; font-size: 1rem; font-weight: 500; }
+    .error-box p  { font-size: .875rem; line-height: 1.6; color: #5f2120; }
+
+    #retryBtn {
+      margin-top: 14px;
+      background: var(--g-red);
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 20px;
+      font-family: 'Roboto', sans-serif;
+      font-size: .875rem;
+      font-weight: 500;
+      letter-spacing: .025em;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    #retryBtn:hover { background: #c5221f; }
+
+    /* ── Summary bar ─────────────────────────────────────── */
+    #summary {
+      font-size: .75rem;
+      color: var(--on-surface-2);
+      margin-bottom: 12px;
+      letter-spacing: .01em;
+    }
+
+    /* ── Event list ──────────────────────────────────────── */
+    #list { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Cards — Material elevation 1 ───────────────────── */
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.1),
+                  0 1px 3px 1px rgba(0,0,0,.07);
+      border-left: 4px solid var(--outline);
+      overflow: hidden;
+      transition: box-shadow .2s cubic-bezier(.4,0,.2,1);
+    }
+
+    .card:hover {
+      box-shadow: 0 1px 3px rgba(0,0,0,.12),
+                  0 4px 8px 3px rgba(0,0,0,.08);
+    }
+
+    .card.incident { border-left-color: var(--g-red); }
+    .card.warning  { border-left-color: var(--g-yellow); }
+
+    /* ── Update / completion animations ─────────────────── */
+    @keyframes flash-update {
+      0%   { background: var(--g-yellow-tint); }
+      100% { background: var(--surface); }
+    }
+    .card.just-updated {
+      animation: flash-update 1.6s cubic-bezier(.4,0,.2,1) forwards;
+    }
+
+    @keyframes flash-complete {
+      0%   { background: var(--g-green-tint); border-left-color: var(--g-green); }
+      65%  { background: var(--g-green-tint); border-left-color: var(--g-green); }
+      100% { background: #f3faf4;             border-left-color: var(--g-green); }
+    }
+    .card.completing {
+      animation: flash-complete 5s cubic-bezier(.4,0,.2,1) forwards;
+      border-left-color: var(--g-green) !important;
+    }
+
+    /* ── Collapsed summary (always visible) ──────────────── */
+    .card-summary {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px 14px 0;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Material state-layer ripple on tap */
+    .card-summary::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: transparent;
+      pointer-events: none;
+      transition: background .15s cubic-bezier(.4,0,.2,1);
+    }
+    .card-summary:active::after { background: rgba(0,0,0,.05); }
+
+    /* CSS-drawn chevron — replaces the ▶ character */
+    .card-chevron {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: transparent;   /* hide text fallback */
+    }
+    .card-chevron::after {
+      content: '';
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--on-surface-2);
+      border-bottom: 2px solid var(--on-surface-2);
+      transform: rotate(-45deg) translate(-1px, 1px);
+      transition: transform .25s cubic-bezier(.4,0,.2,1);
+    }
+    .card.expanded .card-chevron::after {
+      transform: rotate(45deg) translate(-3px, -1px);
+    }
+
+    .card-summary-content { flex: 1; min-width: 0; }
+
+    .card-top-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 3px;
+    }
+
+    .card-location {
+      font-size: 1rem;      /* 16 sp */
+      font-weight: 500;
+      color: var(--on-surface);
+      line-height: 1.3;
+    }
+
+    /* Material filter chips */
+    .card-badges {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 16px;
+      padding: 3px 10px;
+      font-size: .6875rem;  /* 11 sp */
+      font-weight: 500;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge-type-warning  { background: var(--g-yellow-tint); color: #b06000; }
+    .badge-type-other    { background: var(--g-blue-tint);   color: #0022cc; }
+    .badge-cat           { background: var(--surface-2); color: var(--on-surface-2); border: 1px solid var(--outline); }
+
+    .status-pill {
+      border-radius: 16px;
+      padding: 3px 10px;
+      font-size: .6875rem;
+      font-weight: 500;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-complete         { background: var(--g-green-tint);  color: #137333; }
+    .status-controlled       { background: var(--g-yellow-tint); color: #b06000; }
+    .status-being-controlled { background: var(--g-red-tint);    color: #c5221f; }
+    .status-default          { background: var(--surface-2); color: var(--on-surface-2); border: 1px solid var(--outline); }
+
+    /* Meta row: time · resources · fire size */
+    .card-meta-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+      font-size: .75rem;
+      color: var(--on-surface-2);
+      margin-bottom: 10px;
+    }
+
+    .card-meta-row .dot { color: var(--outline); }
+
+    /* ── Pager preview strip ─────────────────────────────── */
+    .card-pager-preview {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: var(--dark);
+      padding: 9px 14px;
+    }
+
+    .pager-preview-text {
+      font-family: 'Roboto Mono', 'Courier New', monospace;
+      font-size: .8125rem;
+      color: var(--dark-on);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* ── Expanded content ────────────────────────────────── */
+    .card-expanded { border-top: 1px solid var(--outline); }
+
+    /* Slide-in when opening */
+    .card.expanded .card-expanded {
+      animation: expand-in .22s cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes expand-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+
+    .card-body {
+      padding: 14px 16px;
+      font-size: .875rem;
+      line-height: 1.6;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 4px 10px;
+    }
+
+    .field-label {
+      color: var(--on-surface-2);
+      font-weight: 500;
+      font-size: .6875rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      padding-top: 2px;
+    }
+
+    .field-value { color: var(--on-surface); word-break: break-word; font-size: .875rem; }
+
+    .divider { height: 1px; background: var(--outline); margin: 12px 0; }
+
+    .section-label {
+      font-size: .6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--on-surface-2);
+      margin-bottom: 8px;
+    }
+
+    .warning-text {
+      white-space: pre-wrap;
+      background: var(--surface-2);
+      border: 1px solid var(--outline);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: .8125rem;
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 8px;
+      line-height: 1.5;
+      color: var(--on-surface);
+    }
+
+    .coords {
+      font-family: 'Roboto Mono', monospace;
+      font-size: .75rem;
+      color: var(--on-surface-2);
+    }
+
+    /* ── Waze button — Material filled tonal ─────────────── */
+    .card-actions { padding: 0 16px 14px; }
+
+    .waze-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #33ccff;
+      color: #000;
+      border-radius: 20px;
+      padding: 9px 20px;
+      text-decoration: none;
+      font-family: 'Roboto', sans-serif;
+      font-weight: 500;
+      font-size: .875rem;
+      letter-spacing: .025em;
+      box-shadow: 0 1px 2px rgba(0,0,0,.2);
+      transition: background .2s cubic-bezier(.4,0,.2,1),
+                  box-shadow  .2s cubic-bezier(.4,0,.2,1);
+    }
+    .waze-btn:hover { background: #00b8e6; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+    .waze-btn svg { flex-shrink: 0; }
+
+    /* ── Pager messages section ───────────────────────────── */
+    .card-pager { }
+
+    .pager-section {
+      background: var(--dark);
+      padding: 12px 16px 14px;
+      border-top: 3px solid var(--g-red);
+    }
+
+    .pager-section .section-label {
+      color: var(--g-red);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    /* Animated live-dot pulse */
+    .pager-section .section-label::before {
+      content: '';
+      display: inline-block;
+      width: 7px; height: 7px;
+      background: var(--g-red);
+      border-radius: 50%;
+      animation: pulse 1.5s cubic-bezier(.4,0,.2,1) infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1;  transform: scale(1);    }
+      50%       { opacity: .3; transform: scale(.75); }
+    }
+
+    .pager-msg {
+      padding: 9px 11px;
+      background: var(--dark-2);
+      border-radius: 8px;
+      border-left: 3px solid var(--g-blue);
+      margin-bottom: 8px;
+    }
+
+    .pager-msg:last-child { margin-bottom: 0; }
+
+    .pager-msg-meta {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 5px;
+    }
+
+    .pager-time {
+      font-family: 'Roboto Mono', monospace;
+      font-size: .6875rem;
+      color: var(--dark-on-2);
+    }
+
+    .pager-agency {
+      font-size: .6875rem;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* Google-adjacent agency colours on dark surface */
+    .agency-ses   { background: #174ea6; color: #aecbfa; }
+    .agency-cfa   { background: #7c2d12; color: #fdba74; }
+    .agency-frv   { background: #78350f; color: #fde68a; }
+    .agency-other { background: #3c4043; color: var(--dark-on-2); }
+
+    .pager-alias { font-size: .75rem; color: var(--dark-on-2); font-style: italic; }
+
+    .pager-msg-text {
+      font-family: 'Roboto Mono', 'Courier New', monospace;
+      font-size: .8125rem;
+      color: var(--dark-on);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    /* ── Bottom navigation ──────────────────────────────────────────────── */
+    #bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: var(--surface); border-top: 1px solid var(--outline);
+      box-shadow: 0 -1px 3px rgba(0,0,0,.08);
+      display: flex; z-index: 30;
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 3px;
+      border: none; background: transparent; color: var(--on-surface-2);
+      cursor: pointer; font-family: 'Roboto', sans-serif;
+      font-size: .625rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      transition: color .2s cubic-bezier(.4,0,.2,1);
+      -webkit-tap-highlight-color: transparent; position: relative;
+    }
+    .nav-btn::before {
+      content: ''; position: absolute; top: 6px; left: 50%;
+      transform: translateX(-50%); width: 64px; height: 32px;
+      border-radius: 16px; background: transparent;
+      transition: background .2s cubic-bezier(.4,0,.2,1);
+    }
+    .nav-btn.active { color: var(--g-blue); }
+    .nav-btn.active::before { background: var(--g-blue-tint); }
+    .nav-btn:active::before { background: rgba(0,43,255,.12); }
+    .nav-btn svg { width: 24px; height: 24px; position: relative; z-index: 1; }
+    .nav-btn span { position: relative; z-index: 1; }
+
+    /* ── Map view ───────────────────────────────────────────────────────── */
+    #map-view {
+      display: none; position: fixed; top: 0; left: 0; right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 15;
+    }
+
+    /* ── Emoji event markers ────────────────────────────────────────────── */
+    .event-marker { background: none !important; border: none !important; }
+    .marker-bubble {
+      width: 42px; height: 42px; background: white; border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+      border: 3px solid white;
+      transition: transform .15s cubic-bezier(.4,0,.2,1), box-shadow .15s;
+    }
+    .marker-bubble:hover { transform: scale(1.15); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+    .marker-fire .marker-bubble     { border-color: var(--g-red); }
+    .marker-tree .marker-bubble     { border-color: var(--g-green); }
+    .marker-building .marker-bubble { border-color: var(--g-yellow); }
+    .marker-weather .marker-bubble  { border-color: var(--g-blue); }
+    .marker-other .marker-bubble    { border-color: var(--on-surface-2); }
+
+    /* ── User location (Google Maps blue dot) ───────────────────────────── */
+    .user-location-icon { background: none !important; border: none !important; }
+    .user-location-wrapper {
+      width: 40px; height: 40px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .user-pulse-ring {
+      position: absolute; width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(0,43,255,.18);
+      animation: user-pulse 2.2s cubic-bezier(.4,0,.2,1) infinite;
+    }
+    .user-dot {
+      width: 18px; height: 18px; background: var(--g-blue);
+      border: 3px solid white; border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,43,255,.6); position: relative; z-index: 1;
+    }
+    @keyframes user-pulse {
+      0%   { transform: scale(.4); opacity: 1; }
+      80%  { transform: scale(2);  opacity: 0; }
+      100% { transform: scale(.4); opacity: 0; }
+    }
+
+    /* ── Locate button ──────────────────────────────────────────────────── */
+    #locate-btn {
+      position: fixed; right: 16px; z-index: 25;
+      width: 48px; height: 48px; background: var(--surface); border: none;
+      border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,.22);
+      cursor: pointer; display: none; align-items: center; justify-content: center;
+      transition: box-shadow .2s, transform .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #locate-btn:hover  { box-shadow: 0 4px 12px rgba(0,0,0,.28); }
+    #locate-btn:active { transform: scale(.94); }
+    #locate-btn.locating svg { animation: spin .8s linear infinite; }
+    #locate-btn svg { color: var(--g-blue); }
+    #locate-btn.locate-error { animation: locate-shake .4s cubic-bezier(.4,0,.2,1); }
+    #locate-btn.locate-error svg { color: var(--g-red); }
+    @keyframes locate-shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-5px); }
+      40%      { transform: translateX(5px); }
+      60%      { transform: translateX(-4px); }
+      80%      { transform: translateX(4px); }
+    }
+
+    /* ── Location toast ─────────────────────────────────────────────────── */
+    #locate-toast {
+      position: fixed; right: 16px; left: 16px; z-index: 50;
+      background: var(--dark); color: var(--dark-on);
+      font-family: 'Roboto', sans-serif; font-size: .8125rem; font-weight: 400;
+      line-height: 1.45; padding: 12px 16px; border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      opacity: 0; pointer-events: none;
+      transition: opacity .22s cubic-bezier(.4,0,.2,1), transform .22s cubic-bezier(.4,0,.2,1);
+      transform: translateY(8px);
+      white-space: pre-line;
+    }
+    #locate-toast.visible {
+      opacity: 1; pointer-events: none; transform: translateY(0);
+    }
+
+    /* ── Modal backdrop ─────────────────────────────────────────────────── */
+    #modal-backdrop {
+      position: fixed; inset: 0; background: rgba(32,33,36,.5);
+      z-index: 35; opacity: 0; pointer-events: none;
+      transition: opacity .28s cubic-bezier(.4,0,.2,1);
+    }
+    #modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+
+    /* ── Event modal bottom sheet ───────────────────────────────────────── */
+    #event-modal {
+      position: fixed; left: 0; right: 0;
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      z-index: 40; background: var(--surface);
+      border-radius: 24px 24px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,.15);
+      max-height: 72vh; overflow-y: auto; overscroll-behavior: contain;
+      transform: translateY(calc(100% + 80px)); pointer-events: none;
+      transition: transform .32s cubic-bezier(.4,0,.2,1);
+    }
+    #event-modal.visible { transform: translateY(0); pointer-events: auto; }
+    .modal-handle {
+      width: 36px; height: 4px; background: var(--outline);
+      border-radius: 2px; margin: 12px auto 0;
+    }
+    .modal-inner { padding: 12px 16px 20px; }
+    #modal-location {
+      font-size: 1.125rem; font-weight: 500; color: var(--on-surface);
+      margin-bottom: 8px; line-height: 1.3;
+    }
+    .modal-pager-wrap {
+      background: var(--dark); border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 14px;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+  </style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <span class="header-icon">🚨</span>
+    <h1>SimplyFire — Live Feed</h1>
+    <span id="lastRefresh"></span>
+    <button id="refreshBtn" onclick="manualRefresh()">Refresh</button>
+  </header>
+
+  <div id="filter-bar">
+    <button class="filter-btn" data-filter="all"      onclick="setFilter('all')">All</button>
+    <button class="filter-btn" data-filter="fire"     onclick="setFilter('fire')">🔥 Fire</button>
+    <button class="filter-btn" data-filter="tree"     onclick="setFilter('tree')">🌳 Tree Down</button>
+    <button class="filter-btn" data-filter="building" onclick="setFilter('building')">🏚 Building</button>
+    <button class="filter-btn" data-filter="weather"  onclick="setFilter('weather')">⚡ Weather</button>
+    <button class="filter-btn" data-filter="other"    onclick="setFilter('other')">Other</button>
+  </div>
+</div>
+
+<main>
+  <div id="summary"></div>
+  <div id="status">
+    <div class="spinner"></div>
+    <p>Loading emergency data…</p>
+  </div>
+  <div id="list"></div>
+</main>
+
+<!-- Map view container -->
+<div id="map-view"></div>
+
+<!-- Locate me button -->
+<button id="locate-btn" onclick="locateUser()" title="My location">
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+    <path d="M12 5a7 7 0 100 14A7 7 0 0012 5z" stroke-width="1.5" opacity=".5"/>
+  </svg>
+</button>
+
+<!-- Location toast -->
+<div id="locate-toast"></div>
+
+<!-- Event info modal (Material bottom sheet) -->
+<div id="modal-backdrop" onclick="closeModal()"></div>
+<div id="event-modal">
+  <div class="modal-handle"></div>
+  <div class="modal-inner">
+    <h2 id="modal-location"></h2>
+    <div id="modal-badges" class="card-badges" style="margin-bottom:8px"></div>
+    <div id="modal-meta" class="card-meta-row"></div>
+    <div id="modal-pager-wrap" class="modal-pager-wrap" style="display:none"></div>
+    <div id="modal-waze" style="display:none"></div>
+  </div>
+</div>
+
+<!-- Bottom navigation -->
+<nav id="bottom-nav">
+  <button class="nav-btn active" id="nav-list-btn" onclick="showView('list')">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+      <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+    </svg>
+    <span>Events</span>
+  </button>
+  <button class="nav-btn" id="nav-map-btn" onclick="showView('map')">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+      <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
+    </svg>
+    <span>Map</span>
+  </button>
+</nav>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const VIC_URL          = 'https://emergency.vic.gov.au/public/events-geojson.json';
+  const PAGER_URL        = '/api/pager';
+  const REFRESH_INTERVAL = 10_000;
+  const FILTER_KEY       = 'vic-emergency-filter';
+
+  // ── Map state ─────────────────────────────────────────────────────────
+  let map          = null;
+  const mapMarkers = new Map(); // eventId → L.Marker
+  let userMarker   = null;
+  let currentView  = 'list';
+
+  // ── State ─────────────────────────────────────────────────────────────
+  const displayedEvents = new Map(); // eventId → { feature, pagerMsgs, stateKey }
+  const pendingRemoval  = new Map(); // eventId → timer id | null (null = timer expired, remove on collapse)
+  let refreshTimer = null;
+  let activeFilter = localStorage.getItem(FILTER_KEY) || 'all';
+  let lastPagerCount = 0;
+
+  // ── Filters ───────────────────────────────────────────────────────────
+  function getFilterCat(feature) {
+    const p    = feature.properties || {};
+    const cat1 = (p.category1 || '').toLowerCase();
+    const feed = p.feedType || '';
+    if (/fire/.test(cat1))     return 'fire';
+    if (cat1 === 'tree down')   return 'tree';
+    if (/building/.test(cat1)) return 'building';
+    if (feed === 'warning')     return 'weather';
+    return 'other';
+  }
+
+  function setFilter(filter) {
+    activeFilter = filter;
+    localStorage.setItem(FILTER_KEY, filter);
+    document.querySelectorAll('.filter-btn').forEach(btn =>
+      btn.classList.toggle('active', btn.dataset.filter === filter)
+    );
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const listEl = document.getElementById('list');
+    let visible = 0;
+    [...listEl.children].forEach(card => {
+      const match = activeFilter === 'all' || card.dataset.filterCat === activeFilter;
+      card.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    updateSummary(visible);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString('en-AU', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      });
+    } catch { return iso; }
+  }
+
+  function fmtDateShort(iso) {
+    if (!iso) return '—';
+    try {
+      const d   = new Date(iso);
+      const now = new Date();
+      if (d.toDateString() === now.toDateString()) {
+        return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+      return d.toLocaleString('en-AU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch { return iso; }
+  }
+
+  function fmtUnix(ts) {
+    try {
+      return new Date(ts * 1000).toLocaleString('en-AU', {
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
+      });
+    } catch { return String(ts); }
+  }
+
+  function statusClass(status) {
+    if (!status) return 'status-default';
+    const s = status.toLowerCase();
+    if (s === 'complete' || s === 'safe' || s === 'under control') return 'status-complete';
+    if (s === 'being controlled')                   return 'status-being-controlled';
+    if (s.includes('control'))                      return 'status-controlled';
+    return 'status-default';
+  }
+
+  function isTerminal(status) {
+    if (!status) return false;
+    const s = status.toLowerCase();
+    return s === 'complete' || s === 'safe';
+  }
+
+  function getPoint(geometry) {
+    if (!geometry) return null;
+    if (geometry.type === 'Point') return geometry.coordinates;
+    if (geometry.type === 'GeometryCollection') {
+      const pt = geometry.geometries.find(g => g.type === 'Point');
+      return pt ? pt.coordinates : null;
+    }
+    return null;
+  }
+
+  function row(label, value) {
+    if (value === null || value === undefined || value === '' || value === false) return '';
+    return `<div class="field-label">${label}</div><div class="field-value">${value}</div>`;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function truncate(str, len = 110) {
+    if (!str || str.length <= len) return str;
+    return str.slice(0, len) + '…';
+  }
+
+  function getEventId(feature) {
+    const p = feature.properties || {};
+    return String(p.estaId || p.eventId || p.sesId || p.sourceId || p.id || '');
+  }
+
+  function cardDomId(eventId) {
+    return 'ev-' + String(eventId).replace(/[^a-zA-Z0-9]/g, '-');
+  }
+
+  function makeStateKey(feature, pagerMsgs) {
+    const p = feature.properties || {};
+    return `${p.updated || p.created || ''}|${p.status || ''}|${p.resources ?? ''}|${p.sizeFmt || ''}|${pagerMsgs.map(m => m.id).join(',')}`;
+  }
+
+  function wazeUrl(geometry) {
+    const coords = getPoint(geometry);
+    if (!coords) return null;
+    const [lng, lat] = coords;
+    return `https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`;
+  }
+
+  // ── Pager matching ────────────────────────────────────────────────────
+  function extractEventNum(text) {
+    const m = (text || '').match(/\bS(\d{7,10})\b/i);
+    return m ? m[1] : null;
+  }
+
+  function agencyClass(agency) {
+    const a = (agency || '').toUpperCase();
+    if (a === 'SES') return 'agency-ses';
+    if (a === 'CFA') return 'agency-cfa';
+    if (a === 'FRV') return 'agency-frv';
+    return 'agency-other';
+  }
+
+  function isUsefulMessage(msg) {
+    const text = (msg.message || '').toUpperCase();
+    return ![/MOVE TO STATION/, /AVAIL\s+MEM/, /FAILED TO MEET TURN/,
+             /BACK ON NOTIFICATION/, /DO TO CONTACT/].some(p => p.test(text));
+  }
+
+  function findPagerMessages(feature, allMessages) {
+    const p         = feature.properties || {};
+    const eventId   = String(p.eventId || '');
+    const estaId    = String(p.estaId  || '');
+    const sesId     = String(p.sesId   || '');
+    const location  = (p.location || '').toLowerCase();
+    const createdMs = new Date(p.created || p.updated || 0).getTime();
+    const WINDOW    = 6 * 60 * 60 * 1000;
+    const locWords  = location.split(/[\s,\/\-]+/).map(w => w.trim()).filter(w => w.length >= 4);
+    const vicOrg    = (p.sourceOrg || '').toUpperCase();
+    const isSES     = vicOrg.includes('SES');
+    const isFire    = p.category1 && /fire/i.test(p.category1);
+    const matched   = [];
+
+    for (const msg of allMessages) {
+      if (!isUsefulMessage(msg)) continue;
+      const msgTime = (msg.timestamp || 0) * 1000;
+      if (createdMs > 0 && Math.abs(msgTime - createdMs) > WINDOW) continue;
+
+      const msgTextUp = (msg.message || '').toUpperCase();
+      const msgAgency = (msg.agency || '').toUpperCase();
+      const extracted = extractEventNum(msg.message || '');
+
+      if (extracted && (extracted === eventId || extracted === estaId || extracted === sesId)) {
+        matched.push({ msg, score: 3 }); continue;
+      }
+
+      if (locWords.length === 0) continue;
+      const locHits = locWords.filter(w => msgTextUp.includes(w.toUpperCase())).length;
+      if (locHits === 0) continue;
+
+      const agencyMatch = (isSES && msgAgency === 'SES') ||
+                          (isFire && (msgAgency === 'CFA' || msgAgency === 'FRV')) ||
+                          (!isSES && !isFire);
+      if (agencyMatch) matched.push({ msg, score: locHits });
+    }
+
+    const seen = new Set();
+    return matched
+      .filter(({ msg }) => { if (seen.has(msg.id)) return false; seen.add(msg.id); return true; })
+      .sort((a, b) => b.score - a.score || b.msg.timestamp - a.msg.timestamp)
+      .map(({ msg }) => msg);
+  }
+
+  // ── Card builders ─────────────────────────────────────────────────────
+
+  function buildCardBadges(feature) {
+    const p  = feature.properties || {};
+    const ft = p.feedType || 'other';
+    // Only show the feed-type badge for non-incident types (incidents are the norm, so it's noise)
+    const typeBadge = ft !== 'incident'
+      ? `<span class="badge ${ft === 'warning' ? 'badge-type-warning' : 'badge-type-other'}">${ft}</span>`
+      : '';
+    const cat1   = p.category1 ? `<span class="badge badge-cat">${escHtml(p.category1)}</span>` : '';
+    const cat2   = (p.category2 && p.category2 !== p.category1) ? `<span class="badge badge-cat">${escHtml(p.category2)}</span>` : '';
+    const sLabel = p.status || '—';
+    const sPill  = `<span class="status-pill ${statusClass(sLabel)}">${escHtml(sLabel)}</span>`;
+    return `${typeBadge}${cat1}${cat2}${sPill}`;
+  }
+
+  function buildCardMeta(feature) {
+    const p     = feature.properties || {};
+    const parts = [];
+    parts.push(escHtml(fmtDateShort(p.created)));
+    if (p.resources !== undefined && p.resources !== null) parts.push(`${p.resources} res.`);
+    if (p.sizeFmt)     parts.push(escHtml(p.sizeFmt));
+    else if (p.size)   parts.push(`${escHtml(p.size)} ha`);
+    return parts.map(s => `<span>${s}</span>`).join('<span class="dot"> · </span>');
+  }
+
+  function buildPagerPreview(pagerMsgs) {
+    if (!pagerMsgs.length) return '';
+    const msg    = pagerMsgs[0];
+    const aClass = agencyClass(msg.agency);
+    const badge  = msg.agency ? `<span class="pager-agency ${aClass}">${escHtml(msg.agency)}</span>` : '';
+    return `${badge}<span class="pager-preview-text">${escHtml(msg.message || '')}</span>`;
+  }
+
+  function buildCardBody(feature) {
+    const p  = feature.properties || {};
+    const ft = p.feedType || 'other';
+    const coords   = getPoint(feature.geometry);
+    const coordStr = coords ? `<span class="coords">${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</span>` : '';
+
+    const common = `
+      ${row('Location',     p.location)}
+      ${row('Organisation', p.sourceOrg)}
+      ${row('Feed',         p.sourceFeed)}
+      ${row('Source ID',    p.sourceId || p.id)}
+      ${row('Created',      fmtDate(p.created))}
+      ${row('Updated',      fmtDate(p.updated))}
+      ${coordStr ? row('Coordinates', coordStr) : ''}
+    `;
+
+    let extra = '';
+
+    if (ft === 'warning' && p.cap) {
+      const c = p.cap;
+      extra = `
+        <div class="divider"></div>
+        <div class="section-label">Warning Details</div>
+        <div class="field-grid">
+          ${row('CAP Event',  c.event)}
+          ${row('Severity',   c.severity)}
+          ${row('Urgency',    c.urgency)}
+          ${row('Certainty',  c.certainty)}
+          ${row('Response',   c.responseType)}
+          ${row('Contact',    c.contact)}
+        </div>
+      `;
+      if (p.text) extra += `
+        <div class="divider"></div>
+        <div class="section-label">Advisory Text</div>
+        <div class="warning-text">${escHtml(p.text)}</div>
+      `;
+    }
+
+    if (ft === 'incident') {
+      const incRows = `
+        ${row('Resources',  p.resources !== undefined ? p.resources : null)}
+        ${p.sizeFmt ? row('Fire Size', p.sizeFmt) : (p.size ? row('Size (ha)', p.size) : '')}
+        ${row('ESTA ID',    p.estaId)}
+        ${row('Source',     p.source)}
+      `;
+      if (incRows.trim()) extra += `
+        <div class="divider"></div>
+        <div class="section-label">Incident Details</div>
+        <div class="field-grid">${incRows}</div>
+      `;
+    }
+
+    return `<div class="field-grid">${common}</div>${extra}`;
+  }
+
+  function buildPagerSection(pagerMsgs) {
+    const rows = pagerMsgs.map(msg => {
+      const aClass = agencyClass(msg.agency);
+      const badge  = msg.agency ? `<span class="pager-agency ${aClass}">${escHtml(msg.agency)}</span>` : '';
+      const alias  = msg.alias  ? `<span class="pager-alias">${escHtml(msg.alias)}</span>` : '';
+      return `
+        <div class="pager-msg">
+          <div class="pager-msg-meta">
+            <span class="pager-time">${fmtUnix(msg.timestamp)}</span>${badge}${alias}
+          </div>
+          <div class="pager-msg-text">${escHtml(msg.message || '')}</div>
+        </div>`;
+    }).join('');
+    return `<div class="pager-section"><div class="section-label">Pager Dispatch</div>${rows}</div>`;
+  }
+
+  function buildCard(feature, pagerMsgs) {
+    const p       = feature.properties || {};
+    const ft      = p.feedType || 'other';
+    const eventId = getEventId(feature);
+    const domId   = cardDomId(eventId);
+    const filterCat = getFilterCat(feature);
+    const updMs   = new Date(p.updated || p.created || 0).getTime();
+    const cardCls = ft === 'incident' ? 'incident' : ft === 'warning' ? 'warning' : '';
+    const location = p.location || p.sourceTitle || (p.cap && p.cap.event) || p.category1 || 'Unknown Location';
+    const waze    = wazeUrl(feature.geometry);
+
+    return `
+      <div class="card ${cardCls}"
+           id="${domId}"
+           data-event-id="${escHtml(eventId)}"
+           data-updated="${updMs}"
+           data-filter-cat="${filterCat}">
+
+        <div class="card-summary" onclick="toggleCard('${domId}')">
+          <div class="card-chevron">▶</div>
+          <div class="card-summary-content">
+            <div class="card-top-row">
+              <span class="card-location">${escHtml(location)}</span>
+              <div class="card-badges">${buildCardBadges(feature)}</div>
+            </div>
+            <div class="card-meta-row">${buildCardMeta(feature)}</div>
+          </div>
+        </div>
+
+        <div class="card-pager-preview">${buildPagerPreview(pagerMsgs)}</div>
+
+        <div class="card-expanded" hidden>
+          <div class="card-body">${buildCardBody(feature)}</div>
+          ${waze ? `
+          <div class="card-actions">
+            <a class="waze-btn" href="${waze}" target="_blank" rel="noopener">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="10" r="8" fill="#33ccff" stroke="#000" stroke-width="1.5"/>
+                <circle cx="9"  cy="9"  r="1.5" fill="#000"/>
+                <circle cx="15" cy="9"  r="1.5" fill="#000"/>
+                <path d="M9 13 q3 3 6 0" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                <path d="M12 18 v4" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M10 22 l2-2 2 2" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Open with Waze
+            </a>
+          </div>` : ''}
+          <div class="card-pager">${buildPagerSection(pagerMsgs)}</div>
+        </div>
+
+      </div>`;
+  }
+
+  // ── Map functions ─────────────────────────────────────────────────────
+  function initMap() {
+    if (map) return;
+    map = L.map('map-view', { zoomControl: false, attributionControl: true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 19
+    }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    map.setView([-37.0, 144.0], 7);
+    syncMarkers();
+  }
+
+  function showView(view) {
+    if (view === currentView) return;
+    currentView = view;
+    const mainEl    = document.querySelector('main');
+    const filterBar = document.getElementById('filter-bar');
+    const mapEl     = document.getElementById('map-view');
+    const locateBtn = document.getElementById('locate-btn');
+    if (view === 'map') {
+      mainEl.style.display    = 'none';
+      filterBar.style.display = 'none';
+      mapEl.style.display     = 'block';
+      locateBtn.style.display = 'flex';
+      const stickyH = document.querySelector('.sticky-top').offsetHeight;
+      locateBtn.style.top = (stickyH + 16) + 'px';
+      document.getElementById('nav-list-btn').classList.remove('active');
+      document.getElementById('nav-map-btn').classList.add('active');
+      initMap();
+      setTimeout(() => { map.invalidateSize(); }, 50);
+    } else {
+      mainEl.style.display    = '';
+      filterBar.style.display = '';
+      mapEl.style.display     = 'none';
+      locateBtn.style.display = 'none';
+      document.getElementById('nav-list-btn').classList.add('active');
+      document.getElementById('nav-map-btn').classList.remove('active');
+      closeModal();
+    }
+  }
+
+  function getEventEmoji(filterCat) {
+    return { fire: '🔥', tree: '🌳', building: '🏚', weather: '⚡', other: '🚨' }[filterCat] || '🚨';
+  }
+
+  function makeMarkerIcon(emoji, filterCat) {
+    return L.divIcon({
+      className: `event-marker marker-${filterCat || 'other'}`,
+      html: `<div class="marker-bubble">${emoji}</div>`,
+      iconSize: [42, 42], iconAnchor: [21, 21], popupAnchor: [0, -26]
+    });
+  }
+
+  function syncMarkers() {
+    if (!map) return;
+    // Remove stale markers
+    for (const [evId, marker] of mapMarkers) {
+      if (!displayedEvents.has(evId)) { map.removeLayer(marker); mapMarkers.delete(evId); }
+    }
+    // Add new markers
+    for (const [evId, { feature }] of displayedEvents) {
+      if (mapMarkers.has(evId)) continue;
+      const coords = getPoint(feature.geometry);
+      if (!coords) continue;
+      const [lng, lat] = coords;
+      const filterCat = getFilterCat(feature);
+      const marker = L.marker([lat, lng], { icon: makeMarkerIcon(getEventEmoji(filterCat), filterCat) });
+      marker.on('click', () => showEventModal(evId));
+      marker.addTo(map);
+      mapMarkers.set(evId, marker);
+    }
+  }
+
+  let _locateToastTimer = null;
+  function showLocateToast(msg, duration = 5000) {
+    const toast = document.getElementById('locate-toast');
+    const btn   = document.getElementById('locate-btn');
+    const btnBottom = btn.getBoundingClientRect().bottom;
+    toast.style.top = (btnBottom + 10) + 'px';
+    toast.textContent = msg;
+    toast.classList.add('visible');
+    clearTimeout(_locateToastTimer);
+    _locateToastTimer = setTimeout(() => toast.classList.remove('visible'), duration);
+  }
+
+  function getLocateDeniedMsg() {
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+    const isPWA = window.navigator.standalone === true;
+    if (isIOS && isPWA) {
+      return 'Location blocked.\nGo to Settings → Privacy & Security → Location Services → find this app → set to "While Using".';
+    } else if (isIOS) {
+      return 'Location blocked for this site.\nIn Safari, tap AA in the address bar → Website Settings → Location → Allow.\nOr: Settings → Privacy & Security → Location Services → Safari → Allow.';
+    }
+    return 'Location access denied.\nEnable it in your browser or device settings, then try again.';
+  }
+
+  function placeUserMarker(lat, lng) {
+    if (userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: 'user-location-icon',
+        html: '<div class="user-location-wrapper"><div class="user-pulse-ring"></div><div class="user-dot"></div></div>',
+        iconSize: [40, 40], iconAnchor: [20, 20]
+      }),
+      zIndexOffset: 1000
+    }).addTo(map);
+  }
+
+  function locateUser() {
+    if (!navigator.geolocation) {
+      showLocateToast('Location not supported on this device.');
+      return;
+    }
+    const btn = document.getElementById('locate-btn');
+
+    // If we already have a position, zoom to it immediately while refreshing
+    if (userMarker) {
+      const ll = userMarker.getLatLng();
+      map.setView(ll, Math.max(map.getZoom(), 14), { animate: true, duration: .6 });
+    }
+
+    btn.disabled = true;
+    btn.classList.remove('locate-error');
+    btn.classList.add('locating');
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: { latitude: lat, longitude: lng } }) => {
+        placeUserMarker(lat, lng);
+        map.setView([lat, lng], 14, { animate: true, duration: .8 });
+        btn.disabled = false;
+        btn.classList.remove('locating');
+      },
+      (err) => {
+        btn.disabled = false;
+        btn.classList.remove('locating');
+        btn.classList.add('locate-error');
+        setTimeout(() => btn.classList.remove('locate-error'), 600);
+        if (err.code === 1) {
+          showLocateToast(getLocateDeniedMsg(), 8000);
+        } else if (err.code === 2) {
+          showLocateToast('Location unavailable. Make sure Location Services is on, then try again.');
+        } else {
+          showLocateToast('Location timed out. Move to an open area and try again.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  }
+
+  function showEventModal(evId) {
+    const entry = displayedEvents.get(evId);
+    if (!entry) return;
+    const { feature, pagerMsgs } = entry;
+    const p = feature.properties || {};
+    const location = p.location || p.sourceTitle || (p.cap && p.cap.event) || p.category1 || 'Unknown Location';
+    const waze = wazeUrl(feature.geometry);
+    document.getElementById('modal-location').textContent = location;
+    document.getElementById('modal-badges').innerHTML = buildCardBadges(feature);
+    document.getElementById('modal-meta').innerHTML = buildCardMeta(feature);
+    const pagerWrap = document.getElementById('modal-pager-wrap');
+    if (pagerMsgs && pagerMsgs.length) {
+      pagerWrap.innerHTML = buildPagerPreview(pagerMsgs);
+      pagerWrap.style.display = 'flex';
+    } else { pagerWrap.style.display = 'none'; }
+    const wazeContainer = document.getElementById('modal-waze');
+    if (waze) {
+      wazeContainer.innerHTML = `<a class="waze-btn" href="${waze}" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="10" r="8" fill="#33ccff" stroke="#000" stroke-width="1.5"/>
+          <circle cx="9" cy="9" r="1.5" fill="#000"/>
+          <circle cx="15" cy="9" r="1.5" fill="#000"/>
+          <path d="M9 13 q3 3 6 0" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M12 18 v4" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M10 22 l2-2 2 2" stroke="#000" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>Open with Waze</a>`;
+      wazeContainer.style.display = 'block';
+    } else { wazeContainer.style.display = 'none'; }
+    document.getElementById('modal-backdrop').classList.add('visible');
+    requestAnimationFrame(() => document.getElementById('event-modal').classList.add('visible'));
+  }
+
+  function closeModal() {
+    document.getElementById('event-modal').classList.remove('visible');
+    document.getElementById('modal-backdrop').classList.remove('visible');
+  }
+
+  // ── Terminal-event removal ────────────────────────────────────────────
+  function removeEvent(eventId) {
+    if (map && mapMarkers.has(eventId)) {
+      map.removeLayer(mapMarkers.get(eventId));
+      mapMarkers.delete(eventId);
+    }
+    const domId  = cardDomId(eventId);
+    const cardEl = document.getElementById(domId);
+    pendingRemoval.delete(eventId);
+    displayedEvents.delete(eventId);
+    if (cardEl) {
+      cardEl.style.transition   = 'opacity .35s ease-out';
+      cardEl.style.opacity      = '0';
+      cardEl.style.pointerEvents = 'none';
+      setTimeout(() => { if (cardEl.parentNode) cardEl.remove(); applyFilter(); }, 380);
+    } else {
+      applyFilter();
+    }
+  }
+
+  function scheduleRemoval(eventId) {
+    if (pendingRemoval.has(eventId)) return; // already scheduled
+    const domId  = cardDomId(eventId);
+    const cardEl = document.getElementById(domId);
+    if (!cardEl) return;
+
+    cardEl.classList.add('completing');
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(domId);
+      if (!el) { pendingRemoval.delete(eventId); return; }
+      if (el.classList.contains('expanded')) {
+        // Card is open — mark timer as expired; removal happens when user collapses it
+        pendingRemoval.set(eventId, null);
+      } else {
+        removeEvent(eventId);
+      }
+    }, 5000);
+
+    pendingRemoval.set(eventId, timer);
+  }
+
+  // ── Collapse / expand ─────────────────────────────────────────────────
+  function toggleCard(domId) {
+    const card     = document.getElementById(domId);
+    if (!card) return;
+    const expanded = card.querySelector('.card-expanded');
+    const isOpen   = !expanded.hidden;
+
+    if (isOpen) {
+      // Collapsing — if the removal timer already expired while it was open, remove it now
+      const eventId = card.dataset.eventId;
+      if (pendingRemoval.has(eventId) && pendingRemoval.get(eventId) === null) {
+        expanded.hidden = true;
+        card.classList.remove('expanded');
+        setTimeout(() => removeEvent(eventId), 50);
+        return;
+      }
+    }
+
+    expanded.hidden = isOpen;
+    card.classList.toggle('expanded', !isOpen);
+  }
+
+  // ── DOM utilities ─────────────────────────────────────────────────────
+  function resortList() {
+    const listEl = document.getElementById('list');
+    const cards  = [...listEl.children];
+    cards.sort((a, b) => Number(b.dataset.updated || 0) - Number(a.dataset.updated || 0));
+    cards.forEach(c => listEl.appendChild(c));
+  }
+
+  function flashCard(el) {
+    el.classList.remove('just-updated');
+    void el.offsetWidth;
+    el.classList.add('just-updated');
+  }
+
+  function updateSummary(visibleCount) {
+    const total = displayedEvents.size;
+    const extra = visibleCount !== total ? `/${total}` : '';
+    document.getElementById('summary').textContent =
+      `${visibleCount}${extra} active events with dispatch · ${lastPagerCount} pager messages loaded`;
+  }
+
+  function setLastRefresh() {
+    document.getElementById('lastRefresh').textContent =
+      `Updated: ${new Date().toLocaleString('en-AU', {
+        day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
+      })}`;
+  }
+
+  // ── Pager fetch ───────────────────────────────────────────────────────
+  async function fetchPagerMessages() {
+    const all = [];
+    for (let page = 1; page <= 3; page++) {
+      try {
+        const res  = await fetch(`${PAGER_URL}?page=${page}`);
+        if (!res.ok) break;
+        const data = await res.json();
+        const msgs = data.messages || [];
+        if (!msgs.length) break;
+        all.push(...msgs);
+      } catch { break; }
+    }
+    return all;
+  }
+
+  // ── Background refresh ────────────────────────────────────────────────
+  async function doRefresh() {
+    const metaEl = document.getElementById('lastRefresh');
+    metaEl.classList.add('refreshing');
+
+    try {
+      const [vicRes, pagerMsgs] = await Promise.all([
+        fetch(VIC_URL).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+        fetchPagerMessages()
+      ]);
+
+      lastPagerCount = pagerMsgs.length;
+      let hasNew = false;
+      const allFeatures = (vicRes.features || []).filter(f => f && f.properties);
+
+      for (const feature of allFeatures) {
+        const eventId  = getEventId(feature);
+        if (pendingRemoval.has(eventId)) continue; // already fading out — don't re-process
+
+        const msgs     = findPagerMessages(feature, pagerMsgs);
+        if (!msgs.length) continue;
+
+        const newKey   = makeStateKey(feature, msgs);
+        const existing = displayedEvents.get(eventId);
+        const cardEl   = document.getElementById(cardDomId(eventId));
+
+        if (cardEl && existing) {
+          if (existing.stateKey !== newKey) {
+            const wasOpen = cardEl.classList.contains('expanded');
+
+            // Update collapsed section
+            cardEl.querySelector('.card-badges').innerHTML       = buildCardBadges(feature);
+            cardEl.querySelector('.card-meta-row').innerHTML     = buildCardMeta(feature);
+            cardEl.querySelector('.card-pager-preview').innerHTML = buildPagerPreview(msgs);
+
+            // Update expanded section
+            cardEl.querySelector('.card-body').innerHTML  = buildCardBody(feature);
+            cardEl.querySelector('.card-pager').innerHTML = buildPagerSection(msgs);
+
+            const p = feature.properties || {};
+            cardEl.dataset.updated = new Date(p.updated || p.created || 0).getTime();
+
+            if (wasOpen) cardEl.querySelector('.card-expanded').hidden = false;
+            flashCard(cardEl);
+          }
+        } else if (!cardEl) {
+          document.getElementById('list').insertAdjacentHTML('afterbegin', buildCard(feature, msgs));
+          // Apply current filter to the new card
+          const newCard = document.getElementById(cardDomId(eventId));
+          if (newCard && activeFilter !== 'all' && newCard.dataset.filterCat !== activeFilter) {
+            newCard.style.display = 'none';
+          }
+          hasNew = true;
+        }
+
+        displayedEvents.set(eventId, { feature, pagerMsgs: msgs, stateKey: newKey });
+
+        // Schedule removal if event is now terminal (complete / safe)
+        if (isTerminal((feature.properties || {}).status)) scheduleRemoval(eventId);
+      }
+
+      if (hasNew) resortList();
+      setLastRefresh();
+      applyFilter(); // re-count visible
+      syncMarkers();
+
+    } catch { /* silent */ }
+
+    metaEl.classList.remove('refreshing');
+    scheduleRefresh();
+  }
+
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(doRefresh, REFRESH_INTERVAL);
+  }
+
+  // ── Initial load ──────────────────────────────────────────────────────
+  async function loadData() {
+    clearTimeout(refreshTimer);
+    // Cancel any pending removal timers from the previous session
+    pendingRemoval.forEach(timer => { if (timer) clearTimeout(timer); });
+    pendingRemoval.clear();
+    displayedEvents.clear();
+
+    const btn      = document.getElementById('refreshBtn');
+    const statusEl = document.getElementById('status');
+    const listEl   = document.getElementById('list');
+
+    btn.disabled              = true;
+    listEl.innerHTML          = '';
+    statusEl.innerHTML        = '<div class="spinner"></div><p>Loading emergency data…</p>';
+    statusEl.style.display    = 'block';
+    document.getElementById('summary').textContent     = '';
+    document.getElementById('lastRefresh').textContent = '';
+
+    try {
+      const [vicRes, pagerMsgs] = await Promise.all([
+        fetch(VIC_URL).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+        fetchPagerMessages()
+      ]);
+
+      lastPagerCount = pagerMsgs.length;
+
+      const sorted = (vicRes.features || [])
+        .filter(f => f && f.properties)
+        .sort((a, b) => {
+          const ta = new Date(a.properties.updated || a.properties.created || 0).getTime();
+          const tb = new Date(b.properties.updated || b.properties.created || 0).getTime();
+          return tb - ta;
+        });
+
+      const cards = [];
+      for (const feature of sorted) {
+        const msgs = findPagerMessages(feature, pagerMsgs);
+        if (!msgs.length) continue;
+        const eventId = getEventId(feature);
+        displayedEvents.set(eventId, { feature, pagerMsgs: msgs, stateKey: makeStateKey(feature, msgs) });
+        cards.push(buildCard(feature, msgs));
+      }
+
+      statusEl.style.display = 'none';
+      listEl.innerHTML = cards.length
+        ? cards.join('')
+        : '<p style="text-align:center;color:#888;padding:40px 20px">No events with pager dispatch right now — checking again in 10 s…</p>';
+
+      setLastRefresh();
+      applyFilter(); // apply saved filter + set summary count
+      syncMarkers();
+
+      // Flash-and-remove any events that are already terminal on load
+      for (const [eventId, { feature }] of displayedEvents) {
+        if (isTerminal((feature.properties || {}).status)) scheduleRemoval(eventId);
+      }
+
+      scheduleRefresh();
+
+    } catch (err) {
+      statusEl.innerHTML = `
+        <div class="error-box">
+          <h2>⚠ Could not load data</h2>
+          <p><strong>Error:</strong> ${escHtml(err.message)}</p>
+          <br><button id="retryBtn" onclick="loadData()">Retry</button>
+        </div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function manualRefresh() { loadData(); }
+
+  // ── Boot ──────────────────────────────────────────────────────────────
+  // Apply saved filter to buttons immediately
+  document.querySelectorAll('.filter-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.filter === activeFilter)
+  );
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  loadData();
+</script>
+</body>
+</html>
