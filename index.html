@@ -812,8 +812,11 @@
   let currentView  = 'list';
 
   // ── State ─────────────────────────────────────────────────────────────
-  const displayedEvents = new Map(); // eventId → { feature, pagerMsgs, stateKey }
-  const pendingRemoval  = new Map(); // eventId → timer id | null (null = timer expired, remove on collapse)
+  const displayedEvents  = new Map(); // eventId → { feature, pagerMsgs, stateKey }
+  const pendingRemoval   = new Map(); // eventId → timer id | null
+  const dismissedEvents  = new Set(  // events hidden this session — never resurface
+    JSON.parse(sessionStorage.getItem('sf-dismissed') || '[]')
+  );
   let refreshTimer = null;
   let activeFilter = localStorage.getItem(FILTER_KEY) || 'all';
   let lastPagerCount = 0;
@@ -1359,6 +1362,9 @@
       map.removeLayer(mapMarkers.get(eventId));
       mapMarkers.delete(eventId);
     }
+    // Remember this dismissal for the rest of the session
+    dismissedEvents.add(eventId);
+    try { sessionStorage.setItem('sf-dismissed', JSON.stringify([...dismissedEvents])); } catch {}
     const domId  = cardDomId(eventId);
     const cardEl = document.getElementById(domId);
     pendingRemoval.delete(eventId);
@@ -1479,7 +1485,8 @@
 
       for (const feature of allFeatures) {
         const eventId  = getEventId(feature);
-        if (pendingRemoval.has(eventId)) continue; // already fading out — don't re-process
+        if (dismissedEvents.has(eventId)) continue; // dismissed this session — never show again
+        if (pendingRemoval.has(eventId)) continue;  // already fading out — don't re-process
 
         const msgs     = findPagerMessages(feature, pagerMsgs);
         if (!msgs.length) continue;
@@ -1579,6 +1586,7 @@
         const msgs = findPagerMessages(feature, pagerMsgs);
         if (!msgs.length) continue;
         const eventId = getEventId(feature);
+        if (dismissedEvents.has(eventId)) continue; // dismissed this session — never show again
         displayedEvents.set(eventId, { feature, pagerMsgs: msgs, stateKey: makeStateKey(feature, msgs) });
         cards.push(buildCard(feature, msgs));
       }
